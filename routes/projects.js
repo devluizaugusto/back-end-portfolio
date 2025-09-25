@@ -1,7 +1,9 @@
 const express = require("express")
 const multer = require("multer")
 const path = require("path")
+const { PrismaClient } = require("@prisma/client")
 
+const prisma = new PrismaClient()
 const router = express.Router()
 
 const storage = multer.diskStorage({
@@ -15,55 +17,71 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage })
 
-let projects = []
+router.post("/", upload.single("image"), async (req, res) => {
 
-router.post("/", upload.single("image"), (req, res) => {
-    const { title, description } = req.body
-    const image = req.file ? `/uploads/${req.file.filename}` : null
+    try {
+        const { title, description } = req.body
+        const image = req.file ? `/uploads/${req.file.filename}` : null
 
-    const newProject = {
-        id: projects.length + 1,
-        title,
-        description,
-        image,
+        const newProject = await prisma.portfolio.create({
+            data: { title, description, image }
+        })
+
+        res.json(newProject)
     }
-
-    projects.push(newProject)
-    res.json(newProject)
+    catch (error) {
+        console.error(error)
+        res.status(500).json({ error: "Erro ao criar projeto" })
+    }
 })
 
-router.get("/", (req, res) => {
-    res.json(projects)
+router.get("/", async (req, res) => {
+    try {
+        const projects = await prisma.portfolio.findMany({
+            orderBy: { createdAt: "desc" }
+        })
+        res.json(projects)
+    }
+    catch (error) {
+        console.error(error)
+        res.status(500).json({ error: "Erro ao buscar projetos" })
+    }
 })
 
-router.delete("/:id", (req, res) => {
-    const { id } = req.params
-    const projectIndex = projects.findIndex(p => p.id === parseInt(id))
-
-    if(projectIndex === -1) {
-        return res.status(404).json({ error: "Projeto não encontrado." })
+router.delete("/:id", async (req, res) => {
+    try {
+        const { id } = req.params
+        await prisma.portfolio.delete({
+            where: { id }
+        })
+        res.json({ message: "Projeto removido com sucesso." })
     }
-    const removedProject = projects.splice(projectIndex, 1)
-    res.json({ message: "Projeto removido com sucesso.", removed: removedProject[0] })
+    catch (error) {
+        console.error(error)
+        res.status(500).json({ error: "Erro ao remover projeto" })
+    }
 })
 
-router.put("/:id", upload.single("image"), (req, res) => {
-    const { id } = req.params
-    const { title, description } = req.body
-    const projectIndex = projects.findIndex(p => p.id === parseInt(id))
+router.put("/:id", upload.single("image"), async (req, res) => {
+    try {
+        const { id } = req.params
+        const { title, description } = req.body
+        const image = req.file ? `/uploads/${req.file.filename}` : undefined
 
-    if(projectIndex === -1) {
-        return res.status(404).json({ error: "Projeto não encontrado." })
+        const updatedProject = await prisma.portfolio.update({
+            where: { id },
+            data: {
+                title,
+                description,
+                ...(image && { image })
+            }
+        })
+        res.json(updatedProject)
     }
-
-    projects[projectIndex].title = title || projects[projectIndex].title
-    projects[projectIndex].description = description || projects[projectIndex].description
-
-    if(req.file) {
-        projects[projectIndex].image = `/uploads/${req.file.filename}`
+    catch (error) {
+        console.error(error)
+        res.status(500).json({ error: "Erro ao editar projeto" })
     }
-
-    res.json({ message: "Projeto atualizado com sucesso.", updated: projects[projectIndex] })
 })
 
 module.exports = router
