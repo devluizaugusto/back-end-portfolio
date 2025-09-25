@@ -47,4 +47,23 @@ router.delete("/:id", (req, res) => {
     res.json({ message: "Projeto removido com sucesso.", removed: removedProject[0] })
 })
 
+router.put("/:id", upload.single("image"), (req, res) => {
+    const { id } = req.params
+    const { title, description } = req.body
+    const projectIndex = projects.findIndex(p => p.id === parseInt(id))
+
+    if(projectIndex === -1) {
+        return res.status(404).json({ error: "Projeto não encontrado." })
+    }
+
+    projects[projectIndex].title = title || projects[projectIndex].title
+    projects[projectIndex].description = description || projects[projectIndex].description
+
+    if(req.file) {
+        projects[projectIndex].image = `/uploads/${req.file.filename}`
+    }
+
+    res.json({ message: "Projeto atualizado com sucesso.", updated: projects[projectIndex] })
+})
+
 module.exports = router
